@@ -1,18 +1,34 @@
 package com.study.flux.user
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import org.springframework.data.redis.core.ReactiveRedisOperations
+import com.study.flux.common.measureExecutionTimeSuspend
+import kotlinx.coroutines.flow.toList
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import reactor.core.publisher.Mono
+import org.springframework.transaction.annotation.Transactional
 
 @Service
+@Transactional(readOnly = true)
 class UserService(
-    val redisOps: ReactiveRedisOperations<String, User>,
-    val objectMapper: ObjectMapper
+    private val userRepository: UserRepository,
 ) {
+    private val logger: Logger = LoggerFactory.getLogger(javaClass)
 
-    fun saveUser(user: User) = redisOps.opsForValue().set(user.id, user).subscribe()
+    @Transactional
+    suspend fun save(user: User): User =
+        measureExecutionTimeSuspend(logger) {
+            userRepository.save(user)
+        }
 
-    fun getUserById(id: String): Mono<User> = redisOps.opsForValue().get(id)
-        .flatMap { Mono.just(objectMapper.convertValue(it, User::class.java)) }
+    suspend fun findById(id: Long): User =
+        measureExecutionTimeSuspend(logger) {
+            userRepository.findById(id) ?: throw NullPointerException("User not found")
+        }
+
+    suspend fun findAll(): List<User> =
+        measureExecutionTimeSuspend(logger) {
+            userRepository
+                .findAll()
+                .toList()
+        }
 }
